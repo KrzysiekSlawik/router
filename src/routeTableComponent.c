@@ -6,6 +6,7 @@
 #define TABLE_SEPARATOR "==========================================================="
 #define RIP_AGE_DIRECT 4 /* RIP for requiescat in pace */
 #define RIP_AGE_INDIRECT 2 /* not to be confused with routing information protocol */
+#define MAX_DISTANCE 20
 /*
  *  This component could use some serious performance improvements
  *  tho it works fine for small network sizes (O(n) time complexity)
@@ -33,6 +34,10 @@ void add_route(route a)
             {
                 routes[i] = a;
             }
+            if(routes[i].via.ip == a.via.ip)
+            {
+                routes[i] = a;
+            }
             return;
         }
         if(routes[i].state == NULLROUTE)
@@ -45,12 +50,14 @@ void add_route(route a)
         routes[nullroute_ind] = a;
     }
     table_size *= 2;
-    if(!realloc(routes, table_size))
+    route *new_table = realloc(routes, table_size*sizeof(route));
+    if(new_table == NULL)
     {
         fprintf(stderr, "route table expanding error\n");
         free(routes);
         exit(EXIT_FAILURE);
     }
+    routes = new_table;
     memset(routes+table_size/2, 0, table_size/2);
     routes[table_size/2] = a;
 }
@@ -76,6 +83,7 @@ static void invalidate_route_on_index(int i)
         case UNREACHABLE:
             return;
         case REACHABLE:
+            routes[i].distance = UINT32_MAX;
             routes[i].state = UNREACHABLE;
             invalidate_routes_via(routes[i].destination);
             return;

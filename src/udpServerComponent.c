@@ -97,3 +97,8 @@ ssize_t icmp_recv(int soc, uint8_t* buff, struct sockaddr_in* sender, struct tim
     }
     return status;
 }
+
+int get_udp_socket()
+{
+    return state.sockfd;
+}
