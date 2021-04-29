@@ -1,9 +1,10 @@
 #include "routeTableComponent.h"
+#include "udpClientComponent.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-#define TABLE_SEPARATOR "==========================================================="
+#define TABLE_SEPARATOR "===========================================================\n"
 #define RIP_AGE_DIRECT 4 /* RIP for requiescat in pace */
 #define RIP_AGE_INDIRECT 2 /* not to be confused with routing information protocol */
 #define MAX_DISTANCE 20
@@ -166,4 +167,71 @@ void update_route_table()
             invalidate_route_on_index(i);
         }
     }
+}
+
+static int match_masked_addr(address masked, address whole)
+{
+    int sufix_len = 32 - masked.mask;
+    uint32_t mask = UINT32_MAX << sufix_len;
+    masked.ip &= mask;
+    whole.ip &= mask;
+    return masked.ip == whole.ip;
+}
+void recv_route_handler(const uint8_t *buff, struct sockaddr *sender)
+{
+    struct sockaddr_in *s = (struct sockaddr_in*)sender;
+    address via_addr; via_addr.ip = s->sin_addr.s_addr;
+    address *dest_addr = (address*)buff;
+    uint32_t distance = *((uint32_t*)(buff+5));
+    for(int i = 0; i < table_size; i++)
+    {
+        if(match_masked_addr(routes[i].destination, via_addr))
+        {
+            distance += routes[i].distance;
+            break;
+        }
+    }
+    route r; r.destination = *dest_addr; r.distance = distance; r.age = 0; r.via = via_addr; r.state = REACHABLEVIA; 
+    add_route(r);
+    sendto_udp("ok", *sender);
+}
+void recv_response_handler(struct sockaddr *sender)
+{
+    struct sockaddr_in *s = (struct sockaddr_in*)sender;
+    address addr; addr.ip = s->sin_addr.s_addr;
+    for(int i = 0; i < table_size; i++)
+    {
+        if((routes[i].state == UNREACHABLE || routes[i].state == REACHABLE) 
+            && match_masked_addr(routes[i].destination, addr))
+        {
+            routes[i].state = REACHABLE;
+            routes[i].age = 0;
+        }
+    }
+}
+/* based on https://stackoverflow.com/questions/28532688/c-cidr-to-address-list */
+address scan_cidr()
+{
+    address addr;
+    uint8_t a, b, c, d, bits;
+    if (scanf("%hhu.%hhu.%hhu.%hhu/%hhu", &a, &b, &c, &d, &bits) < 5)
+    {
+        fprintf(stderr, "invalid CIDR error\n");
+        exit(EXIT_FAILURE);
+    }
+    if (bits > 32) 
+    {
+        fprintf(stderr, "invalid CIDR mask error\n");
+        exit(EXIT_FAILURE);
+    }
+    addr.ip =
+        (a << 24UL) |
+        (b << 16UL) |
+        (c << 8UL) |
+        (d);
+    uint32_t mask = (0xFFFFFFFFUL << (32 - bits)) & 0xFFFFFFFFUL;
+    addr.ip &= mask;
+    addr.mask = bits;
+
+    return addr;
 }

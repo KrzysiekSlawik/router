@@ -1,4 +1,5 @@
 #include "udpServerComponent.h"
+#include "udpClientComponent.h"
 #include "routeTableComponent.h"
 #include "router.h"
 #include <stdio.h>
@@ -10,15 +11,39 @@
 
 void recv_handler(long len, const uint8_t *buff, struct sockaddr *sender)
 {
-    if(sender != NULL)
+    printf("Im talking with me\n");
+    if(len == 3 && strcmp((char*)buff, "ok") == 0)
     {
-        printf("Im alive\n len = %ld, %s\n", len, buff);
+        recv_response_handler(sender);
+    }
+    else if(len == 9)
+    {
+        recv_route_handler(buff, sender);
     }
 }
 
-int main()//int argc, char const *argv[])
-{ 
+int main()
+{
     call_inits();
+    int n;
+    if(scanf("%d", &n)<1)
+    {
+        fprintf(stderr, "invalid format error\n");
+        exit(EXIT_FAILURE); 
+    }
+    
+    for(int i = 0; i < n; i++)
+    {
+        address a = scan_cidr();
+        
+        route r; r.state = REACHABLE; r.destination = a; r.age = 0;
+        if(scanf(" distance %d", &r.distance)<1)
+        {
+            fprintf(stderr, "invalid format error\n");
+            exit(EXIT_FAILURE);
+        }
+        add_route(r);
+    }
     for(;;)
     {
         call_updates();
@@ -28,6 +53,7 @@ int main()//int argc, char const *argv[])
 void call_inits()
 {
     init_udp_server();
+    init_udp_client();
     init_route_table();
 }
 void call_updates()
@@ -37,4 +63,5 @@ void call_updates()
     listen_udp(&timeout,recv_handler);
     update_route_table();
     print_route_table();
+    update_udp_client();
 }

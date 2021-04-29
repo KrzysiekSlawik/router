@@ -33,5 +33,7 @@ extern void add_route(route);
 extern void invalidate_route(address a);
 extern void print_route_table();
 extern void update_route_table();
-
+extern void recv_route_handler(const uint8_t *buff, struct sockaddr *sender);
+extern void recv_response_handler(struct sockaddr *sender);
+extern address scan_cidr();
 #endif
